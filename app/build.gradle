@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.tsk.trofeotest'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.tsk.trofeotest'
+        minSdk 30
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+    }
+}

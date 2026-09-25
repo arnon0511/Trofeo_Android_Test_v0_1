@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
     static final int VID=0x0416, PID=0x5302, WIDTH=1280, HEIGHT=480;
     static final String ACTION_USB_PERMISSION="com.tsk.trofeotest.USB_PERMISSION";
     UsbManager usb; UsbDevice dev; UsbDeviceConnection conn; UsbInterface intf; UsbEndpoint epOut, epIn;
-    TextView status, log; Button connect, test, select, send; Bitmap selected;
+    TextView status, log; Button diagnostic, connect, test, select, send; Bitmap selected;
     final ExecutorService io = Executors.newSingleThreadExecutor();
 
     final BroadcastReceiver permissionReceiver = new BroadcastReceiver() {
@@ -32,23 +32,49 @@ public class MainActivity extends Activity {
         }
     };
 
-    @Override public void onCreate(Bundle b){ super.onCreate(b); usb=(UsbManager)getSystemService(USB_SERVICE); registerReceiver(permissionReceiver,new IntentFilter(ACTION_USB_PERMISSION), RECEIVER_NOT_EXPORTED); buildUi(); }
+    @Override public void onCreate(Bundle b){ super.onCreate(b); usb=(UsbManager)getSystemService(USB_SERVICE); registerReceiver(permissionReceiver,new IntentFilter(ACTION_USB_PERMISSION), RECEIVER_NOT_EXPORTED); buildUi(); runUsbDiagnostic(); }
     @Override protected void onDestroy(){ super.onDestroy(); try{unregisterReceiver(permissionReceiver);}catch(Exception ignored){} closeUsb(); io.shutdownNow(); }
 
     void buildUi(){
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(28,28,28,28);
-        TextView title=new TextView(this); title.setText("TROFEO CONTROL v0.1"); title.setTextSize(28); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); root.addView(title);
+        TextView title=new TextView(this); title.setText("TROFEO CONTROL v0.2"); title.setTextSize(28); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); root.addView(title);
         status=new TextView(this); status.setText("Disconnected — 0416:5302"); status.setTextSize(18); status.setPadding(0,16,0,20); root.addView(status);
-        connect=btn("CONNECT TROFEO"); test=btn("TEST IMAGE"); select=btn("SELECT IMAGE"); send=btn("SEND SELECTED IMAGE");
-        root.addView(connect); root.addView(test); root.addView(select); root.addView(send);
+        diagnostic=btn("USB DIAGNOSTIC / REFRESH"); connect=btn("CONNECT TROFEO"); test=btn("TEST IMAGE"); select=btn("SELECT IMAGE"); send=btn("SEND SELECTED IMAGE");
+        root.addView(diagnostic); root.addView(connect); root.addView(test); root.addView(select); root.addView(send);
         log=new TextView(this); log.setText("Log:\nReady"); log.setTextSize(14); log.setPadding(0,24,0,0); root.addView(log,new LinearLayout.LayoutParams(-1,0,1));
         setContentView(root);
+        diagnostic.setOnClickListener(v->runUsbDiagnostic());
         connect.setOnClickListener(v->detectAndRequest());
         test.setOnClickListener(v->sendBitmap(makeTestBitmap()));
         select.setOnClickListener(v->{ Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i,77); });
         send.setOnClickListener(v->{ if(selected==null) append("Select an image first"); else sendBitmap(selected); });
     }
     Button btn(String s){ Button b=new Button(this); b.setText(s); b.setTextSize(18); b.setAllCaps(false); return b; }
+
+    void runUsbDiagnostic(){
+        boolean host=getPackageManager().hasSystemFeature("android.hardware.usb.host");
+        Map<String,UsbDevice> devices=usb.getDeviceList();
+        StringBuilder sb=new StringBuilder();
+        sb.append("\n=== USB DIAGNOSTIC ===");
+        sb.append("\nUSB Host supported: ").append(host?"YES":"NO");
+        sb.append("\nDevices found: ").append(devices.size());
+        boolean found=false; int n=0;
+        for(UsbDevice d:devices.values()){
+            n++; boolean trofeo=d.getVendorId()==VID && d.getProductId()==PID; if(trofeo)found=true;
+            sb.append(String.format(Locale.US,"\n\nDevice %d%s\nName: %s\nVID: %04X  PID: %04X\nClass: %d  Interfaces: %d\nPermission: %s",
+                    n,trofeo?"  [TROFEO]":"",d.getDeviceName(),d.getVendorId(),d.getProductId(),d.getDeviceClass(),d.getInterfaceCount(),usb.hasPermission(d)?"YES":"NO"));
+            for(int i=0;i<d.getInterfaceCount();i++){
+                UsbInterface f=d.getInterface(i);
+                sb.append(String.format(Locale.US,"\n  IF%d class=%d subclass=%d proto=%d endpoints=%d",i,f.getInterfaceClass(),f.getInterfaceSubclass(),f.getInterfaceProtocol(),f.getEndpointCount()));
+                for(int j=0;j<f.getEndpointCount();j++){ UsbEndpoint e=f.getEndpoint(j); sb.append(String.format(Locale.US,"\n    EP 0x%02X %s type=%d max=%d",e.getAddress(),e.getDirection()==UsbConstants.USB_DIR_IN?"IN":"OUT",e.getType(),e.getMaxPacketSize())); }
+            }
+        }
+        sb.append("\n\nTROFEO 0416:5302: ").append(found?"FOUND":"NOT FOUND");
+        if(!found) sb.append("\nIf Devices found = 0, Android has not enumerated the display as a USB host device.");
+        final String report=sb.toString();
+        log.setText("Log:"+report);
+        setStatus(found?"TROFEO FOUND — press CONNECT":"TROFEO NOT FOUND — see diagnostic");
+    }
 
     void detectAndRequest(){
         dev=null; for(UsbDevice d:usb.getDeviceList().values()) if(d.getVendorId()==VID && d.getProductId()==PID){dev=d;break;}
@@ -80,7 +106,7 @@ public class MainActivity extends Activity {
             byte[] frame=buildFrame(jpg);
             int sent=transferOut(frame,8000);
             if(sent!=frame.length) throw new IOException("Short write "+sent+"/"+frame.length);
-            runOnUiThread(()->{setStatus("TEST SENT — PM 128 / 1280×480"); append("JPEG sent: "+jpg.length+" bytes. Note: v0.1 sends ONE frame per connection to avoid firmware lock.");});
+            runOnUiThread(()->{setStatus("TEST SENT — PM 128 / 1280×480"); append("JPEG sent: "+jpg.length+" bytes. Note: v0.2 sends ONE frame per connection to avoid firmware lock.");});
         }catch(Exception e){ runOnUiThread(()->{setStatus("Send failed");append(e.toString());}); }
     }); }
 

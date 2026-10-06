@@ -1,4 +1,4 @@
-TSK Car Media v1.8 - Pi Edition
+TSK Car Media v1.8.1 - Pi Edition
 
 ต่อยอดจาก Car Media v1.7 เดิม
 - 1280x480
@@ -11,5 +11,5 @@ TSK Car Media v1.8 - Pi Edition
 
 Build:
 อัปโหลด Source ทั้งหมดขึ้น GitHub แล้วเปิด Actions
-เลือก Build TSK Car Media v1.8 Pi Edition -> Run workflow
+เลือก Build TSK Car Media v1.8.1.1 Pi Edition -> Run workflow
 ดาวน์โหลด Artifact: TSK-Car-Media-v1.8-Pi-Edition-APK
